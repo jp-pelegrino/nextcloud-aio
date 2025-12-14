@@ -5,18 +5,11 @@
 
 FROM valkey/valkey:7.2-alpine
 
+# Copy scripts with correct permissions
 COPY --chmod=775 start.sh /start.sh
-
-RUN set -ex; \
-    apk upgrade --no-cache -a; \
-    apk add --no-cache openssl bash; \
-    \
-# Give root a random password for security
-    echo "root:$(openssl rand -base64 12)" | chpasswd;
-
 COPY --chmod=775 healthcheck.sh /healthcheck.sh
 
-# Run as non-root user for security
+# Run as non-root user for security (valkey user is UID 999 in the base image)
 USER 999
 
 ENTRYPOINT ["/start.sh"]

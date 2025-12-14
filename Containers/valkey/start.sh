@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 # Show warning if vm.overcommit is disabled
 # Memory overcommit must be enabled for safe operation of Valkey/Redis
-if [ "$(sysctl -n vm.overcommit_memory)" != "1" ]; then
+if [ "$(sysctl -n vm.overcommit_memory 2>/dev/null || echo 0)" != "1" ]; then
     echo "WARNING: Memory overcommit is disabled but necessary for safe operation"
     echo "See https://github.com/nextcloud/all-in-one/discussions/1731 how to enable overcommit"
 fi

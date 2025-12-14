@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Health check for Valkey container
 # Valkey is RESP-compatible, so we can use valkey-cli (or redis-cli if available as alias)
