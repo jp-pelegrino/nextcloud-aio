@@ -80,9 +80,30 @@ docker compose -f docker-compose.yml ps
 
 ### 5. Access Nextcloud AIO
 
-- **Admin Interface**: `https://your-host-ip:8080`
-- **Nextcloud HTTP**: `http://your-host-ip:80`
-- **Nextcloud HTTPS**: `https://your-host-ip:8443`
+> [!NOTE]
+> **About SSL/TLS Certificates**:
+> - Nextcloud AIO uses **self-signed certificates** by default
+> - HTTP requests are automatically redirected to HTTPS
+> - Your browser will show security warnings - this is normal
+> - Accept the security exception or add the certificate to your trust store
+> - For production, configure a proper domain with valid certificates
+
+**Access URLs** (replace `your-host-ip` with your actual IP or localhost):
+- **Admin Interface**: `https://your-host-ip:8080` (or `:8083` if using ADMIN_HOST_PORT=8083)
+- **Nextcloud HTTP**: `http://your-host-ip:80` (redirects to HTTPS, or `:8082` if using HTTP_HOST_PORT=8082)
+- **Nextcloud HTTPS**: `https://your-host-ip:8443` (or `:7443` if using HTTPS_HOST_PORT=7443)
+
+**Testing with curl**:
+```bash
+# HTTP will redirect to HTTPS with self-signed cert
+curl -L http://localhost:8082  # Will redirect to HTTPS
+
+# HTTPS with self-signed cert (use -k to skip verification)
+curl -k https://localhost:7443  # -k flag ignores certificate validation
+
+# Or to see the redirect:
+curl -v http://localhost:8082  # Will show 301/302 redirect
+```
 
 ## Configuration Options
 
@@ -120,6 +141,13 @@ openssl rand -base64 32
 ```
 
 ## Deployment Scenarios
+
+> [!NOTE]
+> **Expected Behavior for All Scenarios**:
+> - HTTP requests automatically redirect to HTTPS
+> - Self-signed SSL certificates are used (browser warnings are normal)
+> - Accept certificate warnings in your browser or use `curl -k` for testing
+> - For production with valid certificates, use a proper domain or Cloudflare Tunnel
 
 ### Scenario 1: Local LAN Access Only
 
@@ -677,11 +705,49 @@ Only use APACHE_PORT if you're running a reverse proxy **outside** of Docker Com
    docker compose -f docker-compose.yml up -d
    ```
 
-### Local Access SSL Protocol Error
+### Local Access SSL/Certificate Errors (EXPECTED BEHAVIOR)
 
-**Symptom**: Cannot access Nextcloud on custom host ports (e.g., 8082, 7443, 8083) - SSL protocol error.
+**Symptom**: Accessing `http://localhost:8082` or `https://localhost:7443` shows SSL/TLS certificate errors.
 
-**Cause**: When APACHE_PORT is set, it changes how the mastercontainer listens for connections, breaking the normal port mappings.
+**This is NORMAL and EXPECTED**:
+
+1. **HTTP redirects to HTTPS**: Nextcloud AIO automatically redirects HTTP requests to HTTPS
+2. **Self-signed certificates**: Nextcloud AIO uses self-signed SSL certificates by default
+3. **Browser warnings**: Your browser/curl will show security warnings
+
+**Solutions**:
+
+1. **For browsers**: Accept the security exception or certificate warning
+   - Chrome: Click "Advanced" → "Proceed to localhost (unsafe)"
+   - Firefox: Click "Advanced" → "Accept the Risk and Continue"
+   - Edge: Click "Advanced" → "Continue to localhost (unsafe)"
+
+2. **For curl/API testing**: Use the `-k` flag to skip certificate verification
+   ```bash
+   # HTTP will redirect to HTTPS
+   curl -Lk http://localhost:8082
+   
+   # Direct HTTPS access (skip verification)
+   curl -k https://localhost:7443
+   
+   # See the redirect in action
+   curl -v http://localhost:8082
+   ```
+
+3. **For production**: Configure a proper domain with valid SSL certificates
+   - Use Let's Encrypt via Nextcloud AIO's built-in support
+   - Or use Cloudflare Tunnel (which provides valid certificates)
+
+**Why this happens**:
+- Nextcloud AIO enforces HTTPS for security
+- Self-signed certificates are used by default for ease of setup
+- This is intentional and protects your data
+
+### Local Access SSL Protocol Error (Configuration Issue)
+
+**Symptom**: Cannot access Nextcloud on custom host ports (e.g., 8082, 7443, 8083) - different SSL error like SEC_E_INTERNAL_ERROR or connection issues.
+
+**Cause**: When APACHE_PORT is set incorrectly, it changes how the mastercontainer listens for connections, breaking the normal port mappings.
 
 **Solution**:
 
@@ -697,12 +763,28 @@ Only use APACHE_PORT if you're running a reverse proxy **outside** of Docker Com
    docker compose -f docker-compose.yml up -d
    ```
 
-3. **Access via the configured ports**:
-   - HTTP: `http://localhost:8082` (or your HTTP_HOST_PORT)
-   - HTTPS: `https://localhost:7443` (or your HTTPS_HOST_PORT) 
-   - Admin: `https://localhost:8083` (or your ADMIN_HOST_PORT)
+3. **Access via the configured ports** (and accept the self-signed certificate):
+   - HTTP: `http://localhost:8082` (redirects to HTTPS)
+   - HTTPS: `https://localhost:7443` (accept certificate warning)
+   - Admin: `https://localhost:8083` (accept certificate warning)
 
 **Note**: APACHE_PORT changes the internal behavior of Nextcloud AIO and is incompatible with normal direct access. Only use it if you have an external reverse proxy on the host machine.
+
+### Cloudflare Tunnel Certificate Warning
+
+**Symptom**: Cloudflared logs show "Cannot determine default origin certificate path" error.
+
+**This is NORMAL**: This warning appears when using token-based authentication and can be safely ignored.
+
+**Why it appears**:
+- Cloudflared looks for a certificate file for advanced configurations
+- When using `TUNNEL_TOKEN`, no certificate file is needed
+- The tunnel works correctly despite this warning
+
+**No action needed**: The warning doesn't affect functionality. Your tunnel is working if you see:
+- "Starting tunnel tunnelID=..."
+- "Connection registered"
+- No other connection errors
 
 ### Cloudflare Tunnel Not Connecting
 
