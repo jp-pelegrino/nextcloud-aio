@@ -1,5 +1,12 @@
 # Docker Compose Deployment with Valkey and Cloudflare Tunnel Support
 
+> [!NOTE]
+> This repository contains two compose files:
+> - `compose.yaml` - Standard Nextcloud AIO deployment
+> - `docker-compose.yml` - Enhanced deployment with Valkey and Cloudflare Tunnel support
+>
+> **To use this enhanced deployment, you must specify `-f docker-compose.yml` in all `docker compose` commands.**
+
 This guide describes how to deploy Nextcloud AIO using the enhanced `docker-compose.yml` configuration that includes:
 
 - **Valkey**: A Redis-compatible cache server (Redis fork with RESP protocol support)
@@ -56,15 +63,19 @@ SKIP_DOMAIN_VALIDATION=true
 
 ### 4. Build and Start
 
+> [!IMPORTANT]
+> This repository contains both `compose.yaml` (standard deployment) and `docker-compose.yml` (enhanced deployment with Valkey/Cloudflare Tunnel).
+> You must specify `-f docker-compose.yml` to use the enhanced configuration.
+
 ```bash
 # Build the Valkey image and start all services
-docker-compose up --build -d
+docker compose -f docker-compose.yml up --build -d
 
 # View logs
-docker-compose logs -f
+docker compose -f docker-compose.yml logs -f
 
 # Check service health
-docker-compose ps
+docker compose -f docker-compose.yml ps
 ```
 
 ### 5. Access Nextcloud AIO
@@ -206,7 +217,7 @@ CF_TUNNEL_TOKEN=your-cloudflare-tunnel-token
 
 6. **Start the services**:
    ```bash
-   docker-compose up -d
+   docker compose -f docker-compose.yml up -d
    ```
 
 ### Option 2: Using Credentials File
@@ -254,17 +265,17 @@ Valkey is a high-performance key-value datastore that is a fork of Redis. It mai
 
 ```bash
 # Check service status
-docker-compose ps redis
+docker compose -f docker-compose.yml ps redis
 
 # View Valkey logs
-docker-compose logs redis
+docker compose -f docker-compose.yml logs redis
 
 # Test Valkey connection (from within container)
-docker-compose exec redis valkey-cli PING
+docker compose -f docker-compose.yml exec redis valkey-cli PING
 # Expected output: PONG
 
 # Test with password (using environment variable for security)
-docker-compose exec redis sh -c 'REDISCLI_AUTH="$REDIS_HOST_PASSWORD" valkey-cli PING'
+docker compose -f docker-compose.yml exec redis sh -c 'REDISCLI_AUTH="$REDIS_HOST_PASSWORD" valkey-cli PING'
 # Expected output: PONG
 ```
 
@@ -286,26 +297,26 @@ Before starting services, verify your configuration:
 
 ```bash
 # Validate docker-compose.yml syntax
-docker-compose config
+docker compose -f docker-compose.yml config
 
 # Check environment variables
-docker-compose config | grep -E "BIND_ADDR|REDIS_HOST_PASSWORD|SKIP_DOMAIN"
+docker compose -f docker-compose.yml config | grep -E "BIND_ADDR|REDIS_HOST_PASSWORD|SKIP_DOMAIN"
 ```
 
 ### Build and Health Checks
 
 ```bash
 # Build Valkey image
-docker-compose build redis
+docker compose -f docker-compose.yml build redis
 
 # Start services
-docker-compose up -d
+docker compose -f docker-compose.yml up -d
 
 # Wait 60 seconds for services to initialize
 sleep 60
 
 # Check health status
-docker-compose ps
+docker compose -f docker-compose.yml ps
 
 # All services should show "healthy" or "running"
 ```
@@ -339,20 +350,20 @@ curl -I http://192.168.1.x:80
 
 ```bash
 # Test PING without password
-docker-compose exec redis valkey-cli PING
+docker compose -f docker-compose.yml exec redis valkey-cli PING
 
 # Test PING with password
-docker-compose exec redis valkey-cli -a "${REDIS_HOST_PASSWORD}" PING
+docker compose -f docker-compose.yml exec redis valkey-cli -a "${REDIS_HOST_PASSWORD}" PING
 
 # Check Valkey info
-docker-compose exec redis valkey-cli -a "${REDIS_HOST_PASSWORD}" INFO server
+docker compose -f docker-compose.yml exec redis valkey-cli -a "${REDIS_HOST_PASSWORD}" INFO server
 ```
 
 ### Cloudflare Tunnel Validation
 
 ```bash
 # Check tunnel status
-docker-compose logs cloudflared
+docker compose -f docker-compose.yml logs cloudflared
 
 # Look for successful connection message:
 # "Connection <UUID> registered"
@@ -365,7 +376,7 @@ curl -I https://cloud.example.com
 
 ### Complete Validation Checklist
 
-- [ ] Valkey container is healthy (`docker-compose ps`)
+- [ ] Valkey container is healthy (`docker compose -f docker-compose.yml ps`)
 - [ ] Nextcloud AIO mastercontainer is healthy
 - [ ] Valkey responds to PING command
 - [ ] Can access admin interface on configured port
@@ -382,7 +393,7 @@ curl -I https://cloud.example.com
 **Symptom**: Valkey container exits immediately or restarts constantly.
 
 **Solutions**:
-1. Check logs: `docker-compose logs redis`
+1. Check logs: `docker compose -f docker-compose.yml logs redis`
 2. Verify memory overcommit is enabled:
    ```bash
    sysctl vm.overcommit_memory
@@ -397,12 +408,12 @@ curl -I https://cloud.example.com
 
 ### Valkey Health Check Failing
 
-**Symptom**: Container shows as "unhealthy" in `docker-compose ps`.
+**Symptom**: Container shows as "unhealthy" in `docker compose -f docker-compose.yml ps`.
 
 **Solutions**:
 1. Check if password is set correctly:
    ```bash
-   docker-compose exec redis valkey-cli -a "your-password" PING
+   docker compose -f docker-compose.yml exec redis valkey-cli -a "your-password" PING
    ```
 2. Verify `REDIS_HOST_PASSWORD` in `.env` matches healthcheck script
 3. Check Valkey logs for errors
@@ -433,11 +444,11 @@ curl -I https://cloud.example.com
 3. Ensure Nextcloud service name is correct: `nextcloud-aio-mastercontainer`
 4. Check tunnel logs:
    ```bash
-   docker-compose logs cloudflared
+   docker compose -f docker-compose.yml logs cloudflared
    ```
 5. Verify network connectivity:
    ```bash
-   docker-compose exec cloudflared ping -c 3 nextcloud-aio-mastercontainer
+   docker compose -f docker-compose.yml exec cloudflared ping -c 3 nextcloud-aio-mastercontainer
    ```
 
 ### Domain Validation Errors
@@ -460,12 +471,12 @@ curl -I https://cloud.example.com
 **Solutions**:
 1. Recreate containers (not just restart):
    ```bash
-   docker-compose down
-   docker-compose up -d
+   docker compose -f docker-compose.yml down
+   docker compose -f docker-compose.yml up -d
    ```
 2. For environment changes, rebuild if needed:
    ```bash
-   docker-compose up --build -d
+   docker compose -f docker-compose.yml up --build -d
    ```
 
 ## Advanced Configuration
@@ -482,7 +493,7 @@ VALKEY_IMAGE=valkey/valkey:7.2.5-alpine
 Or to use your own build:
 ```bash
 # Build with custom tag
-docker-compose build --build-arg VALKEY_VERSION=7.2.5 redis
+docker compose -f docker-compose.yml build --build-arg VALKEY_VERSION=7.2.5 redis
 
 # Update .env
 VALKEY_IMAGE=nextcloud-aio-valkey:custom
@@ -541,13 +552,13 @@ Then uncomment the MTU configuration in `docker-compose.yml`.
 
 5. **Keep images updated**:
    ```bash
-   docker-compose pull
-   docker-compose up -d
+   docker compose -f docker-compose.yml pull
+   docker compose -f docker-compose.yml up -d
    ```
 
 6. **Review container logs regularly**:
    ```bash
-   docker-compose logs --tail=100 --follow
+   docker compose -f docker-compose.yml logs --tail=100 --follow
    ```
 
 ## Support and Resources
