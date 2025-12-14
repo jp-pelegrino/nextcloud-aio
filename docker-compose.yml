@@ -54,7 +54,7 @@ services:
       NEXTCLOUD_ADDITIONAL_PHP_EXTENSIONS: ${NEXTCLOUD_ADDITIONAL_PHP_EXTENSIONS:-imagick}
       
       # Backup configuration
-      BORG_RETENTION_POLICY: ${BORG_RETENTION_POLICY:---keep-within=7d --keep-weekly=4 --keep-monthly=6}
+      BORG_RETENTION_POLICY: ${BORG_RETENTION_POLICY:-"--keep-within=7d --keep-weekly=4 --keep-monthly=6"}
       AIO_DISABLE_BACKUP_SECTION: ${AIO_DISABLE_BACKUP_SECTION:-false}
       
       # Talk port
@@ -123,14 +123,14 @@ services:
   #   container_name: nextcloud-aio-cloudflared
   #   networks:
   #     - nextcloud-aio
-  #   command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
-  #   # Alternative configuration using credentials file:
-  #   # command: tunnel --no-autoupdate run
+  #   # Use environment variable instead of command-line token for better security
+  #   command: tunnel --no-autoupdate run
+  #   environment:
+  #     TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:-}
+  #   # Alternative: Use credentials file for advanced configuration
   #   # volumes:
   #   #   - ${CF_TUNNEL_CREDFILE:-./cloudflared-credentials.json}:/etc/cloudflared/credentials.json:ro
   #   #   - ${CF_TUNNEL_CONFIG:-./cloudflared-config.yml}:/etc/cloudflared/config.yml:ro
-  #   environment:
-  #     TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:-}
   #   depends_on:
   #     - nextcloud-aio-mastercontainer
   #   healthcheck:

@@ -29,8 +29,8 @@ This guide describes how to deploy Nextcloud AIO using the enhanced `docker-comp
 
 ```bash
 # Clone the repository (if not already done)
-git clone https://github.com/jp-pelegrino/nextcloud-aio.git
-cd nextcloud-aio
+git clone https://github.com/nextcloud/all-in-one.git
+cd all-in-one
 
 # Copy the example environment file
 cp .env.example .env
@@ -197,7 +197,7 @@ CF_TUNNEL_TOKEN=your-cloudflare-tunnel-token
      container_name: nextcloud-aio-cloudflared
      networks:
        - nextcloud-aio
-     command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+     command: tunnel --no-autoupdate run
      environment:
        TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN}
      depends_on:
@@ -263,9 +263,12 @@ docker-compose logs redis
 docker-compose exec redis valkey-cli PING
 # Expected output: PONG
 
-# Test with password
-docker-compose exec redis valkey-cli -a your-password PING
+# Test with password (using environment variable for security)
+docker-compose exec redis sh -c 'REDISCLI_AUTH="$REDIS_HOST_PASSWORD" valkey-cli PING'
+# Expected output: PONG
 ```
+
+**Note:** Using `REDISCLI_AUTH` environment variable instead of `-a` flag prevents password exposure in process lists.
 
 ### Migration from Redis
 

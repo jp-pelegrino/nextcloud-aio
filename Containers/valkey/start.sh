@@ -18,5 +18,3 @@ else
     echo "WARNING: Starting Valkey without authentication (not recommended for production)"
     exec valkey-server --loglevel warning
 fi
-
-exec "$@"
