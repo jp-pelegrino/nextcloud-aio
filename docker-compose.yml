@@ -114,8 +114,9 @@ services:
   # 
   # When using this service:
   #   - Set BIND_ADDR=127.0.0.1 to prevent external LAN access
-  #   - Configure your tunnel to point to http://nextcloud-aio-mastercontainer:80 or https://nextcloud-aio-mastercontainer:8443
-  #   - The tunnel will handle SSL/TLS termination
+  #   - Configure your tunnel to point to http://nextcloud-aio-mastercontainer:80 (recommended)
+  #   - IMPORTANT: Use HTTP, not HTTPS, to avoid TLS verification errors with self-signed certs
+  #   - Cloudflare will handle SSL/TLS termination for external connections
   
   # cloudflared:
   #   image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-latest}

@@ -193,7 +193,12 @@ CF_TUNNEL_TOKEN=your-cloudflare-tunnel-token
    - Add a public hostname:
      - **Subdomain**: `cloud` (or your choice)
      - **Domain**: `example.com` (your domain)
-     - **Service**: `http://nextcloud-aio-mastercontainer:80` (or `https://...8443` for HTTPS)
+     - **Service**: `http://nextcloud-aio-mastercontainer:80` (**Use HTTP, not HTTPS**)
+   
+   > [!IMPORTANT]
+   > **Use HTTP (port 80) as the origin service**, not HTTPS. The Nextcloud AIO mastercontainer uses a self-signed certificate that will cause TLS errors with Cloudflare Tunnel. Cloudflare will handle HTTPS for external connections.
+   > 
+   > If you must use HTTPS to the origin, you need to configure Cloudflare Tunnel to skip TLS verification (not recommended for production).
 
 4. **Update `.env`**:
    ```env
@@ -465,9 +470,130 @@ curl -I https://cloud.example.com
    sudo netstat -tulpn | grep -E ':80|:8080|:8443'
    ```
 
+### Cloudflare Tunnel TLS Errors
+
+**Symptom**: Cloudflare Tunnel logs show `remote error: tls: internal error` or `Unable to reach the origin service`.
+
+**Cause**: Multiple possible causes when using HTTPS origin:
+1. Mastercontainer not fully started/healthy yet
+2. Self-signed certificate causing TLS handshake failures
+3. TLS version or cipher mismatch
+4. Incorrect service name or port
+
+**Solutions**:
+
+1. **RECOMMENDED**: Change to HTTP origin (simplest fix):
+   - In Cloudflare Zero Trust dashboard, edit your tunnel's public hostname
+   - Change service URL to `http://nextcloud-aio-mastercontainer:80`
+   - Remove or set `No TLS Verify` to OFF (not needed for HTTP)
+   - Save and wait 30-60 seconds for changes to propagate
+   - Cloudflare still serves HTTPS to end users; only internal connection uses HTTP
+
+2. **Verify mastercontainer is running and healthy**:
+   ```bash
+   # Check if mastercontainer is running
+   docker compose -f docker-compose.yml ps nextcloud-aio-mastercontainer
+   
+   # Check mastercontainer logs for startup completion
+   docker compose -f docker-compose.yml logs nextcloud-aio-mastercontainer | tail -50
+   
+   # Test if port 80 is responding inside Docker network
+   docker compose -f docker-compose.yml exec cloudflared wget -O- http://nextcloud-aio-mastercontainer:80 2>&1 | head
+   
+   # Test if port 8443 is responding (if using HTTPS)
+   docker compose -f docker-compose.yml exec cloudflared wget --no-check-certificate -O- https://nextcloud-aio-mastercontainer:8443 2>&1 | head
+   ```
+
+3. **If using HTTPS with noTLSVerify and still failing**, check for these issues:
+   
+   a. Verify the mastercontainer HTTPS service is actually listening:
+   ```bash
+   # From inside cloudflared container
+   docker compose -f docker-compose.yml exec cloudflared nc -zv nextcloud-aio-mastercontainer 8443
+   # Should show: succeeded!
+   ```
+   
+   b. Check if it's a TLS protocol version issue:
+   ```bash
+   # Test TLS handshake from cloudflared container
+   docker compose -f docker-compose.yml exec cloudflared sh -c "echo | openssl s_client -connect nextcloud-aio-mastercontainer:8443 2>&1 | head -20"
+   ```
+   
+   c. The error "tls: internal error" often means the server closed the connection during handshake.
+      This can happen if:
+      - Mastercontainer is still starting up (wait 2-3 minutes after start)
+      - Too many concurrent connection attempts (restart both services)
+      - Certificate chain issues
+
+4. **Create a proper tunnel config file** for HTTPS with noTLSVerify:
+   
+   Create `cloudflared-config.yml`:
+   ```yaml
+   tunnel: <your-tunnel-id>
+   credentials-file: /etc/cloudflared/credentials.json
+   
+   ingress:
+     - hostname: nxt.dohwvchd.info
+       service: https://nextcloud-aio-mastercontainer:8443
+       originRequest:
+         noTLSVerify: true
+         # Add these for better compatibility with self-signed certs
+         disableChunkedEncoding: false
+         http2Origin: true
+     - hostname: chat.dohwvchd.info  
+       service: https://nextcloud-aio-mastercontainer:8443
+       originRequest:
+         noTLSVerify: true
+         disableChunkedEncoding: false
+         http2Origin: true
+     - service: http_status:404
+   ```
+   
+   Update docker-compose.yml cloudflared section:
+   ```yaml
+   cloudflared:
+     image: cloudflare/cloudflared:latest
+     restart: always
+     container_name: nextcloud-aio-cloudflared
+     networks:
+       - nextcloud-aio
+     command: tunnel --config /etc/cloudflared/config.yml run
+     volumes:
+       - ./cloudflared-config.yml:/etc/cloudflared/config.yml:ro
+       - ./cloudflared-credentials.json:/etc/cloudflared/credentials.json:ro
+     depends_on:
+       - nextcloud-aio-mastercontainer
+   ```
+
+5. **Restart in the correct order**:
+   ```bash
+   # Stop everything
+   docker compose -f docker-compose.yml down
+   
+   # Start mastercontainer first and wait for it to be fully ready
+   docker compose -f docker-compose.yml up -d nextcloud-aio-mastercontainer
+   
+   # Wait 2-3 minutes and check it's healthy
+   docker compose -f docker-compose.yml ps nextcloud-aio-mastercontainer
+   
+   # Then start cloudflared
+   docker compose -f docker-compose.yml up -d cloudflared
+   
+   # Monitor logs
+   docker compose -f docker-compose.yml logs -f cloudflared
+   ```
+
+6. **Check for port conflicts or network issues**:
+   ```bash
+   # Verify both containers are on the same network
+   docker network inspect nextcloud-aio
+   
+   # Both containers should be listed under "Containers"
+   ```
+
 ### Cloudflare Tunnel Not Connecting
 
-**Symptom**: Tunnel logs show connection errors or timeout.
+**Symptom**: Tunnel logs show connection errors or timeout (not TLS-related).
 
 **Solutions**:
 1. Verify tunnel token is correct in `.env`
