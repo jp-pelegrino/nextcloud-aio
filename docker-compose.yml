@@ -113,9 +113,10 @@ services:
   #   2. Mount a tunnel credentials file and set the tunnel configuration
   # 
   # When using this service:
-  #   - Configure your tunnel to point to http://nextcloud-aio-mastercontainer:11000
-  #   - IMPORTANT: Use port 11000 (APACHE_PORT), not 80 or 8443
-  #   - Set APACHE_PORT=11000 and SKIP_DOMAIN_VALIDATION=true in .env
+  #   - Configure your tunnel to point to http://nextcloud-aio-mastercontainer:80
+  #   - IMPORTANT: Use port 80, NOT port 11000
+  #   - DO NOT set APACHE_PORT in .env (APACHE_PORT is only for external reverse proxies)
+  #   - Set SKIP_DOMAIN_VALIDATION=true in .env
   #   - Optionally set BIND_ADDR=127.0.0.1 to prevent direct LAN access
   #   - Cloudflare will handle SSL/TLS termination for external connections
   
