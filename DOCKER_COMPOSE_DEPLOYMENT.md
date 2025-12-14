@@ -144,12 +144,14 @@ Best for maximum security when you only want access via Cloudflare.
 ```env
 BIND_ADDR=127.0.0.1
 SKIP_DOMAIN_VALIDATION=true
+APACHE_PORT=11000
+APACHE_IP_BINDING=127.0.0.1
 CF_TUNNEL_TOKEN=your-cloudflare-tunnel-token
 ```
 
 **Additional Steps**:
 1. Uncomment the `cloudflared` service in `docker-compose.yml`
-2. Configure Cloudflare Tunnel to point to `http://nextcloud-aio-mastercontainer:80`
+2. Configure Cloudflare Tunnel to point to `http://nextcloud-aio-mastercontainer:11000`
 
 **Access**:
 - Via Cloudflare: `https://your-domain.example.com`
@@ -163,11 +165,13 @@ Best for flexibility when you want both local and remote access.
 ```env
 BIND_ADDR=0.0.0.0
 SKIP_DOMAIN_VALIDATION=true
+APACHE_PORT=11000
 CF_TUNNEL_TOKEN=your-cloudflare-tunnel-token
 ```
 
 **Additional Steps**:
 1. Uncomment the `cloudflared` service in `docker-compose.yml`
+2. Configure Cloudflare Tunnel to point to `http://nextcloud-aio-mastercontainer:11000`
 
 **Access**:
 - Via Cloudflare: `https://your-domain.example.com`
@@ -193,16 +197,22 @@ CF_TUNNEL_TOKEN=your-cloudflare-tunnel-token
    - Add a public hostname:
      - **Subdomain**: `cloud` (or your choice)
      - **Domain**: `example.com` (your domain)
-     - **Service**: `http://nextcloud-aio-mastercontainer:80` (**Use HTTP, not HTTPS**)
+     - **Service**: `http://nextcloud-aio-mastercontainer:11000` (**Use HTTP with port 11000**)
    
    > [!IMPORTANT]
-   > **Use HTTP (port 80) as the origin service**, not HTTPS. The Nextcloud AIO mastercontainer uses a self-signed certificate that will cause TLS errors with Cloudflare Tunnel. Cloudflare will handle HTTPS for external connections.
+   > **Use HTTP with port 11000 as the origin service**: `http://nextcloud-aio-mastercontainer:11000`
    > 
-   > If you must use HTTPS to the origin, you need to configure Cloudflare Tunnel to skip TLS verification (not recommended for production).
+   > - Port 11000 is the APACHE_PORT for reverse proxy traffic
+   > - Do NOT use port 80 or 8443 when using as a reverse proxy
+   > - Cloudflare will handle HTTPS for external connections
+   > - You must also set `APACHE_PORT=11000` in your `.env` file (see step 4)
 
-4. **Update `.env`**:
+4. **Update `.env`** with reverse proxy settings:
    ```env
    CF_TUNNEL_TOKEN=eyJhIjoiXXXXX...
+   APACHE_PORT=11000
+   APACHE_IP_BINDING=127.0.0.1
+   SKIP_DOMAIN_VALIDATION=true
    ```
 
 5. **Uncomment cloudflared service** in `docker-compose.yml`:
@@ -591,6 +601,46 @@ curl -I https://cloud.example.com
    # Both containers should be listed under "Containers"
    ```
 
+### Cloudflare Tunnel Redirect Loop (ERR_TOO_MANY_REDIRECTS)
+
+**Symptom**: Browser shows "ERR_TOO_MANY_REDIRECTS" or "redirected you too many times" when accessing through Cloudflare Tunnel.
+
+**Cause**: Incorrect configuration of APACHE_PORT and APACHE_IP_BINDING for reverse proxy use.
+
+**Solution**:
+
+When using Cloudflare Tunnel with Nextcloud AIO, you must configure it as a reverse proxy:
+
+1. **Update your `.env` file** with these settings:
+   ```env
+   # For Cloudflare Tunnel (reverse proxy configuration)
+   APACHE_PORT=11000
+   APACHE_IP_BINDING=127.0.0.1
+   SKIP_DOMAIN_VALIDATION=true
+   ```
+
+2. **Update Cloudflare Tunnel configuration** to use the APACHE_PORT:
+   - In Cloudflare Zero Trust dashboard, edit your tunnel's public hostname
+   - Change service URL to `http://nextcloud-aio-mastercontainer:11000`
+   - NOT port 80, use port 11000 (the APACHE_PORT value)
+
+3. **Restart the services**:
+   ```bash
+   docker compose -f docker-compose.yml down
+   docker compose -f docker-compose.yml up -d
+   ```
+
+4. **Wait 2-3 minutes** for Nextcloud to fully initialize, then test access.
+
+**Why this is needed**:
+- `APACHE_PORT=11000` tells Nextcloud AIO to listen on port 11000 for reverse proxy traffic
+- `APACHE_IP_BINDING=127.0.0.1` binds internally (not needed for in-compose tunnel, but doesn't hurt)
+- Port 80/8080/8443 are for direct access; port 11000 is for reverse proxy access
+- Without these settings, Nextcloud redirects in a loop trying to enforce HTTPS
+
+**Alternative for direct access (not through tunnel)**:
+If you want direct access without reverse proxy configuration, remove APACHE_PORT and APACHE_IP_BINDING from `.env`, but then you can't use Cloudflare Tunnel properly.
+
 ### Cloudflare Tunnel Not Connecting
 
 **Symptom**: Tunnel logs show connection errors or timeout (not TLS-related).
@@ -616,8 +666,8 @@ curl -I https://cloud.example.com
 1. Ensure `SKIP_DOMAIN_VALIDATION=true` in `.env` when using Cloudflare Tunnel
 2. Restart services after changing `.env`:
    ```bash
-   docker-compose down
-   docker-compose up -d
+   docker compose -f docker-compose.yml down
+   docker compose -f docker-compose.yml up -d
    ```
 3. Check Nextcloud trusted domains in `config.php`
 
