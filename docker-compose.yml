@@ -1,0 +1,155 @@
+# Nextcloud AIO Docker Compose with Valkey and Cloudflare Tunnel Support
+# This compose file provides a configurable deployment that supports:
+# - Environment-driven host bind addresses and ports
+# - Optional Cloudflare Tunnel routing
+# - Local LAN access control via BIND_ADDR
+# - Valkey (Redis-compatible) as the caching layer
+
+name: nextcloud-aio
+
+services:
+  # Main Nextcloud AIO Master Container
+  nextcloud-aio-mastercontainer:
+    image: ghcr.io/nextcloud-releases/all-in-one:${AIO_VERSION:-latest}
+    init: true
+    restart: ${RESTART_POLICY:-always}
+    container_name: nextcloud-aio-mastercontainer
+    volumes:
+      - nextcloud_aio_mastercontainer:/mnt/docker-aio-config
+      - ${HOST_DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    networks:
+      - nextcloud-aio
+    ports:
+      # HTTP port - can be removed when using Cloudflare Tunnel exclusively
+      - "${BIND_ADDR:-0.0.0.0}:${HTTP_HOST_PORT:-80}:80"
+      # AIO admin interface (HTTPS with self-signed cert)
+      - "${BIND_ADDR:-0.0.0.0}:${ADMIN_HOST_PORT:-8080}:8080"
+      # HTTPS port - can be removed when using Cloudflare Tunnel exclusively
+      - "${BIND_ADDR:-0.0.0.0}:${HTTPS_HOST_PORT:-8443}:8443"
+    environment:
+      # Domain validation - set to true for Cloudflare proxied domains
+      SKIP_DOMAIN_VALIDATION: ${SKIP_DOMAIN_VALIDATION:-true}
+      
+      # Apache configuration for reverse proxy scenarios
+      APACHE_PORT: ${APACHE_PORT:-11000}
+      APACHE_IP_BINDING: ${APACHE_IP_BINDING:-}
+      
+      # Nextcloud data directory configuration
+      NEXTCLOUD_DATADIR: ${NEXTCLOUD_DATADIR:-}
+      NEXTCLOUD_MOUNT: ${NEXTCLOUD_MOUNT:-}
+      
+      # Nextcloud trusted domains
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS:-}
+      
+      # Upload and execution limits
+      NEXTCLOUD_UPLOAD_LIMIT: ${NEXTCLOUD_UPLOAD_LIMIT:-16G}
+      NEXTCLOUD_MAX_TIME: ${NEXTCLOUD_MAX_TIME:-3600}
+      NEXTCLOUD_MEMORY_LIMIT: ${NEXTCLOUD_MEMORY_LIMIT:-512M}
+      
+      # Startup apps
+      NEXTCLOUD_STARTUP_APPS: ${NEXTCLOUD_STARTUP_APPS:-deck twofactor_totp tasks calendar contacts notes}
+      
+      # Additional packages and extensions
+      NEXTCLOUD_ADDITIONAL_APKS: ${NEXTCLOUD_ADDITIONAL_APKS:-imagemagick}
+      NEXTCLOUD_ADDITIONAL_PHP_EXTENSIONS: ${NEXTCLOUD_ADDITIONAL_PHP_EXTENSIONS:-imagick}
+      
+      # Backup configuration
+      BORG_RETENTION_POLICY: ${BORG_RETENTION_POLICY:---keep-within=7d --keep-weekly=4 --keep-monthly=6}
+      AIO_DISABLE_BACKUP_SECTION: ${AIO_DISABLE_BACKUP_SECTION:-false}
+      
+      # Talk port
+      TALK_PORT: ${TALK_PORT:-3478}
+      
+      # Docker socket path for Watchtower
+      WATCHTOWER_DOCKER_SOCKET_PATH: ${WATCHTOWER_DOCKER_SOCKET_PATH:-/var/run/docker.sock}
+      
+      # Additional docker network for reverse proxy
+      APACHE_ADDITIONAL_NETWORK: ${APACHE_ADDITIONAL_NETWORK:-}
+      
+      # Hardware acceleration options
+      NEXTCLOUD_ENABLE_DRI_DEVICE: ${NEXTCLOUD_ENABLE_DRI_DEVICE:-false}
+      NEXTCLOUD_ENABLE_NVIDIA_GPU: ${NEXTCLOUD_ENABLE_NVIDIA_GPU:-false}
+      
+      # Other options
+      COLLABORA_SECCOMP_DISABLED: ${COLLABORA_SECCOMP_DISABLED:-false}
+      NEXTCLOUD_KEEP_DISABLED_APPS: ${NEXTCLOUD_KEEP_DISABLED_APPS:-false}
+    # Uncomment if using SELinux
+    # security_opt:
+    #   - label:disable
+
+  # Valkey (Redis-compatible) Cache Service
+  # Valkey is a Redis fork that provides full RESP protocol compatibility
+  # This service is named "redis" to maintain compatibility with Nextcloud's expectations
+  redis:
+    build:
+      context: ./Containers/valkey
+      dockerfile: Dockerfile
+    image: ${VALKEY_IMAGE:-nextcloud-aio-valkey:local}
+    restart: ${RESTART_POLICY:-always}
+    container_name: nextcloud-aio-redis
+    networks:
+      - nextcloud-aio
+    environment:
+      REDIS_HOST_PASSWORD: ${REDIS_HOST_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    # Do not expose Redis/Valkey port to host by default for security
+    # If needed for debugging, uncomment and set REDIS_HOST_PORT in .env
+    # ports:
+    #   - "${BIND_ADDR:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Cloudflare Tunnel Service
+  # Uncomment this service to run Cloudflare Tunnel inside the compose network
+  # This allows traffic to reach Nextcloud without exposing ports on the host
+  # Requirements:
+  #   1. Set CF_TUNNEL_TOKEN in your .env file (from Cloudflare Zero Trust dashboard)
+  #   OR
+  #   2. Mount a tunnel credentials file and set the tunnel configuration
+  # 
+  # When using this service:
+  #   - Set BIND_ADDR=127.0.0.1 to prevent external LAN access
+  #   - Configure your tunnel to point to http://nextcloud-aio-mastercontainer:80 or https://nextcloud-aio-mastercontainer:8443
+  #   - The tunnel will handle SSL/TLS termination
+  
+  # cloudflared:
+  #   image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-latest}
+  #   restart: ${RESTART_POLICY:-always}
+  #   container_name: nextcloud-aio-cloudflared
+  #   networks:
+  #     - nextcloud-aio
+  #   command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+  #   # Alternative configuration using credentials file:
+  #   # command: tunnel --no-autoupdate run
+  #   # volumes:
+  #   #   - ${CF_TUNNEL_CREDFILE:-./cloudflared-credentials.json}:/etc/cloudflared/credentials.json:ro
+  #   #   - ${CF_TUNNEL_CONFIG:-./cloudflared-config.yml}:/etc/cloudflared/config.yml:ro
+  #   environment:
+  #     TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:-}
+  #   depends_on:
+  #     - nextcloud-aio-mastercontainer
+  #   healthcheck:
+  #     test: ["CMD", "cloudflared", "tunnel", "info"]
+  #     interval: 60s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 30s
+
+volumes:
+  nextcloud_aio_mastercontainer:
+    name: nextcloud_aio_mastercontainer
+  redis_data:
+    name: nextcloud_aio_redis_data
+
+networks:
+  nextcloud-aio:
+    name: nextcloud-aio
+    driver: bridge
+    # Uncomment to adjust MTU size if needed
+    # driver_opts:
+    #   com.docker.network.driver.mtu: ${DOCKER_NETWORK_MTU:-1500}
