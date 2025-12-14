@@ -26,18 +26,30 @@ This guide describes how to deploy Nextcloud AIO using the enhanced `docker-comp
 
 ## Quick Start
 
+> [!IMPORTANT]
+> **Windows WSL2 Users:** Line ending issues can cause Valkey/Redis to fail.  
+> **→ See [WSL2_SETUP_GUIDE.md](WSL2_SETUP_GUIDE.md) for complete WSL2-specific instructions.**
+
 ### 1. Prerequisites
 
 - Docker Engine 20.10+ and Docker Compose V2 installed
 - For Cloudflare Tunnel: A Cloudflare account with Zero Trust enabled
 - Linux, macOS, or Windows with Docker Desktop
 
+> [!WARNING]
+> **Windows Users:** Before cloning, configure Git:
+> ```bash
+> git config --global core.autocrlf false
+> git config --global core.eol lf
+> ```
+> This prevents line ending issues that break shell scripts.
+
 ### 2. Initial Setup
 
 ```bash
 # Clone the repository (if not already done)
-git clone https://github.com/nextcloud/all-in-one.git
-cd all-in-one
+git clone https://github.com/jp-pelegrino/nextcloud-aio.git
+cd nextcloud-aio
 
 # Copy the example environment file
 cp .env.example .env
@@ -429,7 +441,34 @@ curl -I https://cloud.example.com
 
 ## Troubleshooting
 
-### Valkey Container Won't Start (Windows Users)
+### Valkey Container Won't Start (Windows/WSL2 Users)
+
+**Symptom**: Container restarts endlessly with error `exec /start.sh: no such file or directory`
+
+**Cause**: Git on Windows converted LF line endings to CRLF, which breaks shell scripts in Linux containers.
+
+**Solution**: **See [WSL2_SETUP_GUIDE.md](WSL2_SETUP_GUIDE.md) for complete step-by-step fix**
+
+**Quick Fix:**
+```bash
+# 1. Configure Git
+git config core.autocrlf false
+git config core.eol lf
+
+# 2. Reset files
+git rm --cached -r .
+git reset --hard HEAD
+
+# 3. Verify
+file Containers/valkey/start.sh
+# Should show "ASCII text executable" (NOT "CRLF")
+
+# 4. Rebuild
+docker compose -f docker-compose.yml build redis --no-cache
+docker compose -f docker-compose.yml up -d
+```
+
+### Valkey Container Won't Start (General)
 
 **Symptom**: Container restarts endlessly with error `exec /start.sh: no such file or directory`
 
