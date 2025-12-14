@@ -388,7 +388,38 @@ curl -I https://cloud.example.com
 
 ## Troubleshooting
 
-### Valkey Container Won't Start
+### Valkey Container Won't Start (Windows Users)
+
+**Symptom**: Container restarts endlessly with error `exec /start.sh: no such file or directory`
+
+**Cause**: Git on Windows may convert LF line endings to CRLF, which breaks shell scripts in Linux containers.
+
+**Solutions**:
+1. **Recommended**: Ensure Git uses LF line endings:
+   ```bash
+   # In the repository directory, run:
+   git config core.autocrlf false
+   git rm --cached -r .
+   git reset --hard
+   ```
+
+2. **Alternative**: Rebuild the image after fixing line endings:
+   ```bash
+   # Convert scripts to LF endings (Git Bash or WSL)
+   dos2unix Containers/valkey/start.sh Containers/valkey/healthcheck.sh
+   
+   # Rebuild the image
+   docker compose -f docker-compose.yml build redis --no-cache
+   docker compose -f docker-compose.yml up -d
+   ```
+
+3. **Verify line endings** in the repository:
+   ```bash
+   # Should show LF, not CRLF
+   file Containers/valkey/start.sh
+   ```
+
+### Valkey Container Won't Start (General)
 
 **Symptom**: Valkey container exits immediately or restarts constantly.
 
