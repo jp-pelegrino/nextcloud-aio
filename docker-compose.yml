@@ -38,8 +38,8 @@ services:
       NEXTCLOUD_DATADIR: ${NEXTCLOUD_DATADIR:-}
       NEXTCLOUD_MOUNT: ${NEXTCLOUD_MOUNT:-}
       
-      # Nextcloud trusted domains
-      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS:-}
+      # Note: NEXTCLOUD_TRUSTED_DOMAINS is not supported by AIO mastercontainer
+      # Trusted domains must be configured through the AIO web interface
       
       # Upload and execution limits
       NEXTCLOUD_UPLOAD_LIMIT: ${NEXTCLOUD_UPLOAD_LIMIT:-16G}
@@ -120,28 +120,28 @@ services:
   #   - Optionally set BIND_ADDR=127.0.0.1 to prevent direct LAN access
   #   - Cloudflare will handle SSL/TLS termination for external connections
   
-  # cloudflared:
-  #   image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-latest}
-  #   restart: ${RESTART_POLICY:-always}
-  #   container_name: nextcloud-aio-cloudflared
-  #   networks:
-  #     - nextcloud-aio
-  #   # Use environment variable instead of command-line token for better security
-  #   command: tunnel --no-autoupdate run
-  #   environment:
-  #     TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:-}
-  #   # Alternative: Use credentials file for advanced configuration
-  #   # volumes:
-  #   #   - ${CF_TUNNEL_CREDFILE:-./cloudflared-credentials.json}:/etc/cloudflared/credentials.json:ro
-  #   #   - ${CF_TUNNEL_CONFIG:-./cloudflared-config.yml}:/etc/cloudflared/config.yml:ro
-  #   depends_on:
-  #     - nextcloud-aio-mastercontainer
-  #   healthcheck:
-  #     test: ["CMD", "cloudflared", "tunnel", "info"]
-  #     interval: 60s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
+  cloudflared:
+    image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-latest}
+    restart: ${RESTART_POLICY:-always}
+    container_name: nextcloud-aio-cloudflared
+    networks:
+      - nextcloud-aio
+    # Use environment variable instead of command-line token for better security
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:-}
+    # Alternative: Use credentials file for advanced configuration
+    # volumes:
+    #   - ${CF_TUNNEL_CREDFILE:-./cloudflared-credentials.json}:/etc/cloudflared/credentials.json:ro
+    #   - ${CF_TUNNEL_CONFIG:-./cloudflared-config.yml}:/etc/cloudflared/config.yml:ro
+    depends_on:
+      - nextcloud-aio-mastercontainer
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "info"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   nextcloud_aio_mastercontainer:
