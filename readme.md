@@ -64,6 +64,7 @@ Included are:
 - Runs on all platforms Docker supports (e.g. also on Windows and Macos)
 - Included containers easy to debug by having the possibility to check their logs directly from the AIO interface
 - [Docker-compose ready](./compose.yaml)
+- **NEW**: [Enhanced Docker Compose with Valkey and Cloudflare Tunnel support](./DOCKER_COMPOSE_DEPLOYMENT.md) - configurable network binding, in-compose Cloudflare Tunnel, Redis replaced with Valkey
 - Can be installed [without a container having access to the docker socket](https://github.com/nextcloud/all-in-one/tree/main/manual-install)
 - Can be installed with [Docker Swarm](https://github.com/nextcloud/all-in-one#can-i-run-this-with-docker-swarm)
 - Can be installed with [Kubernetes](https://github.com/nextcloud/all-in-one/tree/main/nextcloud-aio-helm-chart)
@@ -86,6 +87,9 @@ Included are:
 | ![image](https://github.com/user-attachments/assets/6ef5d7b5-86f2-402c-bc6c-b633af2ca7dd) | ![image](https://github.com/user-attachments/assets/939d0fdf-436f-433d-82d3-27548263a040) |
 
 ## How to use this?
+
+> [!NOTE]
+> **Alternative Deployment**: For advanced users who want configurable network binding, integrated Cloudflare Tunnel support, or Valkey (Redis-compatible) caching, see the **[Enhanced Docker Compose Deployment Guide](./DOCKER_COMPOSE_DEPLOYMENT.md)**.
 
 The steps below are written for Linux. For platform-specific guidance see:
 - macOS: [How to run AIO on macOS](#how-to-run-aio-on-macos)

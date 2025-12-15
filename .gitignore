@@ -13,3 +13,6 @@
 /manual-install/docker-compose.yml
 /manual-install/compose.yaml
 /manual-install/.env
+
+# Environment files with secrets
+.env
